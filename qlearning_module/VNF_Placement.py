@@ -7,11 +7,24 @@ import copy
 
 class VNFPlacement():
 
-    def __init__(self, item, number_of_node, limit_W):
-        self.node_state = [[4, 5, 6, 7], [0, 1, 2, 3], [8, 9, 10, 11], [12, 13, 14, 15]]
+    def __init__(self, vnf_resource_dict, number_of_node, limit_W, nodes):
+        # self.node_state = [[4, 5, 6, 7], [0, 1, 2, 3], [8, 9, 10, 11], [12, 13, 14, 15]]
         # 物品列表 dataframe
-        self.item = item
+        vnf_list, resource_list = self.convert_vnf_resource_format(vnf_resource_dict)
+        self.vnf_list = vnf_list
+        self.resource_list = resource_list
+        self.item = pd.DataFrame(data=resource_list, columns=['cpu', 'mem', 'BW'])
         self.number_of_node = number_of_node
+
+        # node 資訊
+        node_list, node_resource_list = self.convert_node_resource_format(nodes)
+        self.node_list = node_list
+        self.node_resource_list = node_resource_list
+
+        # gen node state
+        self.node_state = list(map(self.gen_node_state, node_list))
+        print('node state')
+        print(self.node_state)
         # actions, 每一物品是一個動作
         self.actions = list()
         for place in range(self.number_of_node):
@@ -19,6 +32,30 @@ class VNFPlacement():
         # 初始化Q table
         self.q_table = pd.DataFrame(columns=self.actions)
         self.limit_W = limit_W
+
+    @staticmethod
+    def convert_vnf_resource_format(vnf_resource_dict):
+        vnf_list = list()
+        resource_list = list()
+        for key, value in vnf_resource_dict.items():
+            vnf_list.append((key, value['node_name']))
+            vnf_resource_list = [float(value['cpu']), float(value['memory'][:-2]), float(value['BW'][:-2])]
+            resource_list.append(vnf_resource_list)
+        return vnf_list, resource_list
+
+    @staticmethod
+    def convert_node_resource_format(nodes):
+        node_list = list(nodes.keys())
+        node_resource_list = list(nodes.values())
+        return node_list, node_resource_list
+
+    def gen_node_state(self, node_name):
+        node_state = list()
+        for index, value in enumerate(self.vnf_list):
+            vnf_in = value[-1]
+            if vnf_in == node_name:
+                node_state.append(index)
+        return node_state
 
     def check_state(self, q_table, placement, actions):
         """
@@ -52,7 +89,7 @@ class VNFPlacement():
         for index, node_stat in enumerate(placement):
             count += len(node_stat)
             cpu_usage = np.sum([self.item['cpu'][i] for i in node_stat]) / self.limit_W['cpu']
-            memory_usage = np.sum([self.item['memory'][i] for i in node_stat]) / self.limit_W['memory']
+            memory_usage = np.sum([self.item['mem'][i] for i in node_stat]) / self.limit_W['mem']
             bw_usage = np.sum([self.item['BW'][i] for i in node_stat]) / self.limit_W['BW']
             if cpu_usage > 1 or memory_usage > 1 or bw_usage > 1:
                 score = -99
@@ -62,8 +99,8 @@ class VNFPlacement():
             score += node_score
 
             # TODO 遷移成本
-            move = 5 * len(set(node_stat).intersection(self.node_state[index]))
-            score += move
+            # move = 5 * len(set(node_stat).intersection(self.node_state[index]))
+            # score += move
 
             # if not node_stat:
             #     score += 15
@@ -233,32 +270,35 @@ class VNFPlacement():
                 knapsack = next_knapsack
                 break
 
-        return knapsack
+        return knapsack, self.vnf_list, self.node_state, self.node_list
 
 
 if __name__ == "__main__":
-    item_list = [[28, 7], [6, 2], [18, 5], [22, 6], [1, 1]]
-    item_list = [[2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100],
-                 [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100]]
-    item = pd.DataFrame(data=item_list, columns=['cpu', 'memory', 'BW'])
-    node_resource = {
-        'cpu': 8,
-        'memory': 16,
-        'BW': 1000
-    }
-    vnf_placement = VNFPlacement(item=item, number_of_node=4, limit_W=node_resource)
-    train_start_time = time()
-    Q = vnf_placement.q_learning(num_episodes=1000, discount_factor=0.9, alpha=0.3, epsilon=0.25)
-    train_finish_time = time()
-    print("==============training time==========")
-    print(train_finish_time - train_start_time)
-    print("==============Q table================")
-    print(Q)
+    # item_list = [[28, 7], [6, 2], [18, 5], [22, 6], [1, 1]]
+    # item_list = [[2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100],
+    #              [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100], [2, 4, 100]]
+    # node_resource = {
+    #     'cpu': 8,
+    #     'mem': 16,
+    #     'BW': 1000
+    # }
 
-    get_result_start_time = time()
-    vnf_placement_result = vnf_placement.get_vnf_placement()
-    get_result_finish_time = time()
-    print("==============result time==========")
-    print(get_result_finish_time - get_result_start_time)
-    print("==============result==========")
-    print(vnf_placement_result)
+    vnf_resource = {"hello-deployment-65868c5b4b-2g44v": {"cpu": "1", "memory": "100Mi", "BW": "100Mi"},
+                    "hello-deployment-65868c5b4b-hjj6w": {"cpu": "1", "memory": "100Mi", "BW": "100Mi"},
+                    "hello-deployment-65868c5b4b-q256x": {"cpu": "1", "memory": "100Mi", "BW": "100Mi"}}
+    # vnf_placement = VNFPlacement(item=item_list, number_of_node=4, limit_W=node_resource)
+    # train_start_time = time()
+    # Q = vnf_placement.q_learning(num_episodes=1000, discount_factor=0.9, alpha=0.3, epsilon=0.25)
+    # train_finish_time = time()
+    # print("==============training time==========")
+    # print(train_finish_time - train_start_time)
+    # print("==============Q table================")
+    # print(Q)
+    #
+    # get_result_start_time = time()
+    # vnf_placement_result = vnf_placement.get_vnf_placement()
+    # get_result_finish_time = time()
+    # print("==============result time==========")
+    # print(get_result_finish_time - get_result_start_time)
+    # print("==============result==========")
+    # print(vnf_placement_result)
