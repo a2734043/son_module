@@ -1,2 +1,8 @@
 .DS_Store
 .idea
+
+#pycharm
+./idea
+
+# MAC OS
+.DS_Store
