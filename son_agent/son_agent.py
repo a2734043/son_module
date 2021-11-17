@@ -15,6 +15,15 @@ class SONAgent(object):
         number = ip.split('.')[-1]
         return "jianqun-{number}".format(number=number)
 
+    def format_vnf_location(self, vnf_list):
+        node_state = dict()
+        for name, info in vnf_list.items():
+            pod_name = name.split('-')[1]
+            if pod_name not in ['webui', 'test']:
+                node_state.setdefault(info.get('node_name'), [])
+                node_state[info.get('node_name')].append(pod_name + '-' + name.split('-')[-1])
+        print(node_state)
+
     def get_son_metrics(self):
         consumer = KafkaConsumer('pm_job', bootstrap_servers=['10.0.1.241:9092'])
         for msg in consumer:
@@ -33,10 +42,12 @@ class SONAgent(object):
                 'mem': 16000,
                 'BW': 1000
             }
+            self.format_vnf_location(vnf_resource)
             vnf_placement = VNFPlacement(vnf_resource_dict=vnf_resource,
                                          number_of_node=len(nodes),
                                          limit_W=node_resource,
                                          nodes=nodes)
+            print(vnf_placement.node_state)
             train_start_time = time()
             Q = vnf_placement.q_learning(num_episodes=1000, discount_factor=0.9, alpha=0.5, epsilon=0.01)
             train_finish_time = time()
@@ -76,7 +87,7 @@ class SONAgent(object):
                     else:
                         son_scheduler.migrate_pod(pod_name, self.node_ip_to_name(optimal_location))
                 # # son_scheduler.migrate_pod(pod_name, 'jianqun-238')
-                # sleep(5)
+                sleep(5)
 
 
 if __name__ == '__main__':

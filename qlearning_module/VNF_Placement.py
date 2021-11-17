@@ -39,7 +39,11 @@ class VNFPlacement():
         resource_list = list()
         for key, value in vnf_resource_dict.items():
             vnf_list.append((key, value['node_name']))
-            vnf_resource_list = [float(value['cpu']), float(value['memory'][:-2]), float(value['BW'][:-2])]
+            try:
+                cpu = float(value['cpu'])
+            except ValueError:
+                cpu = float(value['cpu'].split('m')[0]) / 1000
+            vnf_resource_list = [cpu, float(value['memory'][:-2]), float(value['BW'])]
             resource_list.append(vnf_resource_list)
         return vnf_list, resource_list
 
